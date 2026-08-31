@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f8">
+  <meta name="description" content="商品候補、ChatGPT調査結果、比較、自分の好みと予算をまとめる個人用買い物データベース。">
+  <title>BuyLens — 買い物比較・欲しいもの管理</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand-block">
+        <a class="brand" href="#products" aria-label="BuyLens 商品一覧へ">
+          <span class="brand-mark" aria-hidden="true">B</span>
+          <span>
+            <strong>BuyLens</strong>
+            <small>買い物判断ワークスペース</small>
+          </span>
+        </a>
+      </div>
+
+      <nav class="main-nav" aria-label="主要メニュー">
+        <button class="nav-button is-active" type="button" data-view="products">商品</button>
+        <button class="nav-button" type="button" data-view="compare">
+          比較
+          <span class="nav-count" id="compareNavCount" hidden>0</span>
+        </button>
+        <button class="nav-button" type="button" data-view="preferences">好み</button>
+        <button class="nav-button" type="button" data-view="settings">設定</button>
+      </nav>
+
+      <button class="budget-chip" id="budgetChip" type="button" data-view="settings" aria-label="予算設定を開く">
+        <span>予定反映後</span>
+        <strong id="headerRemainingBudget">未設定</strong>
+      </button>
+    </header>
+
+    <div class="global-error" id="globalError" role="alert" hidden></div>
+
+    <main class="app-main">
+      <section class="view is-active" id="view-products" data-view-panel="products">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">PRODUCT LIBRARY</p>
+            <h1>商品</h1>
+            <p>候補と調査結果を一覧で見て、比較したい商品を選びます。</p>
+          </div>
+          <button class="button button-primary" id="addProductButton" type="button">商品を追加</button>
+        </div>
+
+        <section class="budget-summary" aria-labelledby="budgetSummaryTitle">
+          <div class="budget-summary-main">
+            <span id="budgetSummaryTitle">現在の買い物予算</span>
+            <strong id="budgetAmountDisplay">未設定</strong>
+          </div>
+          <div class="budget-summary-item">
+            <span>購入予定合計</span>
+            <strong id="plannedTotalDisplay">¥0</strong>
+          </div>
+          <div class="budget-summary-item budget-summary-remaining">
+            <span>予定反映後</span>
+            <strong id="remainingBudgetDisplay">—</strong>
+          </div>
+          <button class="text-button" type="button" data-view="settings">予算を変更</button>
+        </section>
+
+        <div class="toolbar" aria-label="商品一覧の絞り込み">
+          <label class="search-field">
+            <span class="sr-only">商品を検索</span>
+            <input id="productSearch" type="search" placeholder="商品名・メーカー・カテゴリを検索">
+          </label>
+          <label>
+            <span class="sr-only">状態で絞り込み</span>
+            <select id="statusFilter">
+              <option value="all">すべての状態</option>
+              <option value="interested">気になる</option>
+              <option value="comparing">比較中</option>
+              <option value="wanted">欲しい</option>
+              <option value="sale_wait">セール待ち</option>
+              <option value="planned">購入予定</option>
+              <option value="purchased">購入済み</option>
+              <option value="skipped">見送り</option>
+            </select>
+          </label>
+          <label>
+            <span class="sr-only">並び替え</span>
+            <select id="productSort">
+              <option value="updated-desc">更新が新しい順</option>
+              <option value="price-asc">価格が安い順</option>
+              <option value="price-desc">価格が高い順</option>
+              <option value="score-desc">評価が高い順</option>
+            </select>
+          </label>
+          <span class="toolbar-count" id="productCount">0件</span>
+        </div>
+
+        <div class="product-list" id="productList" aria-live="polite"></div>
+      </section>
+
+      <section class="view" id="view-compare" data-view-panel="compare" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">COMPARE</p>
+            <h1>商品比較</h1>
+            <p>重要な差と結論を横並びで確認します。MVPでは最大4商品を同時比較します。</p>
+          </div>
+        </div>
+
+        <div class="workspace-grid">
+          <aside class="side-panel">
+            <section class="panel-section">
+              <div class="section-heading compact">
+                <div>
+                  <h2>比較中の商品</h2>
+                  <p id="compareSelectionHelp">商品一覧から2〜4件選択してください。</p>
+                </div>
+              </div>
+              <div class="selection-list" id="compareSelectionList"></div>
+            </section>
+
+            <section class="panel-section">
+              <div class="section-heading compact">
+                <div>
+                  <h2>比較グループ</h2>
+                  <p>「USBハブ候補」のような名前で保存できます。</p>
+                </div>
+              </div>
+              <label class="field">
+                <span>保存済みグループ</span>
+                <select id="comparisonGroupSelect">
+                  <option value="">現在の選択</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>グループ名</span>
+                <input id="comparisonGroupName" type="text" maxlength="80" placeholder="例: USBハブ候補">
+              </label>
+              <div class="button-row">
+                <button class="button button-primary" id="saveComparisonGroupButton" type="button">グループを保存</button>
+                <button class="button button-danger-quiet" id="deleteComparisonGroupButton" type="button" disabled>削除</button>
+              </div>
+            </section>
+          </aside>
+
+          <div class="compare-main">
+            <section class="decision-panel" id="decisionPanel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">DECISION</p>
+                  <h2>今回の結論</h2>
+                </div>
+                <button class="button button-secondary" id="saveDecisionButton" type="button">結論を保存</button>
+              </div>
+
+              <div class="decision-grid">
+                <label class="field">
+                  <span>一番おすすめ</span>
+                  <select id="decisionBestOverall"><option value="">未選択</option></select>
+                </label>
+                <label class="field">
+                  <span>コスパ重視</span>
+                  <select id="decisionBestValue"><option value="">未選択</option></select>
+                </label>
+                <label class="field">
+                  <span>性能重視</span>
+                  <select id="decisionBestPerformance"><option value="">未選択</option></select>
+                </label>
+                <label class="field">
+                  <span>あえて選ばない</span>
+                  <select id="decisionAvoid"><option value="">未選択</option></select>
+                </label>
+              </div>
+              <label class="field">
+                <span>結論メモ</span>
+                <textarea id="decisionNote" rows="3" placeholder="ChatGPTの比較結論や判断理由を残す"></textarea>
+              </label>
+            </section>
+
+            <div class="compare-table-wrap" id="compareTableWrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-preferences" data-view-panel="preferences" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">PREFERENCES</p>
+            <h1>自分の好み</h1>
+            <p>ChatGPTへ毎回説明しなくて済むように、買い物の判断基準を保存します。</p>
+          </div>
+        </div>
+
+        <div class="settings-layout">
+          <section class="settings-card">
+            <div class="section-heading">
+              <div>
+                <h2>適用範囲</h2>
+                <p>共通条件か、カテゴリ専用条件を編集します。</p>
+              </div>
+            </div>
+            <div class="preference-scope-row">
+              <label class="field">
+                <span>範囲</span>
+                <select id="preferenceScope">
+                  <option value="common">共通条件</option>
+                  <option value="category">カテゴリ別条件</option>
+                </select>
+              </label>
+              <label class="field" id="preferenceCategoryField" hidden>
+                <span>カテゴリ</span>
+                <input id="preferenceCategory" list="categoryOptions" maxlength="60" placeholder="例: オーディオ">
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-card">
+            <div class="section-heading">
+              <div>
+                <h2>重視度</h2>
+                <p>1 = あまり重視しない、5 = 最重要。</p>
+              </div>
+            </div>
+            <div class="weight-grid" id="weightGrid">
+              <label class="weight-field"><span>価格</span><input name="price" type="range" min="1" max="5" step="1"><output>3</output></label>
+              <label class="weight-field"><span>性能</span><input name="performance" type="range" min="1" max="5" step="1"><output>3</output></label>
+              <label class="weight-field"><span>コスパ</span><input name="value" type="range" min="1" max="5" step="1"><output>3</output></label>
+              <label class="weight-field"><span>デザイン</span><input name="design" type="range" min="1" max="5" step="1"><output>3</output></label>
+              <label class="weight-field"><span>耐久性</span><input name="durability" type="range" min="1" max="5" step="1"><output>3</output></label>
+              <label class="weight-field"><span>サイズ</span><input name="size" type="range" min="1" max="5" step="1"><output>3</output></label>
+              <label class="weight-field"><span>素材</span><input name="material" type="range" min="1" max="5" step="1"><output>3</output></label>
+            </div>
+          </section>
+
+          <section class="settings-card">
+            <div class="two-column-fields">
+              <label class="field">
+                <span>多少高くても優先したい条件</span>
+                <textarea id="preferencePriorities" rows="6" placeholder="1行に1つ&#10;例: 長く使えること"></textarea>
+              </label>
+              <label class="field">
+                <span>避けたい特徴</span>
+                <textarea id="preferenceAvoid" rows="6" placeholder="1行に1つ&#10;例: 安っぽい素材"></textarea>
+              </label>
+            </div>
+            <div class="form-actions">
+              <span class="save-status" id="preferenceSaveStatus" aria-live="polite"></span>
+              <button class="button button-primary" id="savePreferencesButton" type="button">好みを保存</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-settings" data-view-panel="settings" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">SETTINGS & DATA</p>
+            <h1>設定・データ管理</h1>
+            <p>現在予算、Backup、ローカル診断を管理します。</p>
+          </div>
+        </div>
+
+        <div class="settings-layout">
+          <section class="settings-card">
+            <div class="section-heading">
+              <div>
+                <h2>現在の買い物予算</h2>
+                <p>今、買い物に使ってよい金額です。購入済みにしただけでは自動で減額しません。</p>
+              </div>
+            </div>
+            <div class="budget-editor">
+              <label class="field budget-input-field">
+                <span>予算（円）</span>
+                <div class="money-input"><span>¥</span><input id="budgetInput" type="number" min="0" step="100" inputmode="numeric" placeholder="50000"></div>
+              </label>
+              <div class="budget-preview">
+                <div><span>購入予定合計</span><strong id="settingsPlannedTotal">¥0</strong></div>
+                <div><span>予定反映後</span><strong id="settingsRemainingBudget">—</strong></div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <span class="save-status" id="budgetSaveStatus" aria-live="polite"></span>
+              <button class="button button-primary" id="saveBudgetButton" type="button">予算を保存</button>
+            </div>
+          </section>
+
+          <section class="settings-card">
+            <div class="section-heading">
+              <div>
+                <h2>JSON Backup</h2>
+                <p>IndexedDBの主要データを1つのJSONに書き出します。Import前に全体Validationを行います。</p>
+              </div>
+            </div>
+            <div class="button-row">
+              <button class="button button-secondary" id="exportBackupButton" type="button">Backupを書き出す</button>
+              <button class="button button-secondary" id="importBackupButton" type="button">Backupを読み込む</button>
+              <input id="importBackupFile" type="file" accept="application/json,.json" hidden>
+            </div>
+            <p class="help-text">Importは現在データを置換します。不正JSONや未対応Schemaでは置換しません。</p>
+          </section>
+
+          <section class="settings-card">
+            <div class="section-heading">
+              <div>
+                <h2>Diagnostics</h2>
+                <p>エラーや重要操作を最大100件だけ端末内に保持します。入力本文や秘密情報は記録しません。</p>
+              </div>
+              <button class="button button-danger-quiet" id="clearDiagnosticsButton" type="button">診断ログを消去</button>
+            </div>
+            <div class="diagnostic-summary" id="diagnosticSummary"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="product-dialog" id="productDialog">
+    <form id="productForm">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">PRODUCT</p>
+          <h2 id="productDialogTitle">商品を追加</h2>
+        </div>
+        <button class="icon-button" id="closeProductDialogButton" type="button" aria-label="閉じる">×</button>
+      </div>
+
+      <input id="productId" type="hidden">
+      <div class="dialog-body">
+        <section class="form-section">
+          <h3>商品情報</h3>
+          <div class="form-grid">
+            <label class="field field-span-2">
+              <span>商品名 <em>必須</em></span>
+              <input id="productName" type="text" maxlength="160" required>
+            </label>
+            <label class="field">
+              <span>メーカー</span>
+              <input id="productManufacturer" type="text" maxlength="100">
+            </label>
+            <label class="field">
+              <span>カテゴリ</span>
+              <input id="productCategory" list="categoryOptions" maxlength="60" placeholder="例: PC用品">
+            </label>
+            <label class="field">
+              <span>現在価格（円）</span>
+              <input id="productPrice" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+            <label class="field">
+              <span>状態</span>
+              <select id="productStatus">
+                <option value="interested">気になる</option>
+                <option value="comparing">比較中</option>
+                <option value="wanted">欲しい</option>
+                <option value="sale_wait">セール待ち</option>
+                <option value="planned">購入予定</option>
+                <option value="purchased">購入済み</option>
+                <option value="skipped">見送り</option>
+              </select>
+            </label>
+            <label class="field field-span-2">
+              <span>商品URL</span>
+              <input id="productUrl" type="url" placeholder="https://...">
+            </label>
+            <label class="field field-span-2">
+              <span>商品画像URL</span>
+              <input id="productImageUrl" type="url" placeholder="https://...">
+            </label>
+            <label class="field field-span-2">
+              <span>自分のメモ</span>
+              <textarea id="productMemo" rows="3"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="form-section research-form-section">
+          <div class="section-heading compact">
+            <div>
+              <h3>ChatGPT調査結果</h3>
+              <p>変更がある場合は新しいSnapshotとして保存します。</p>
+            </div>
+            <span class="research-date" id="latestResearchDate">調査履歴なし</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>調査時価格（円）</span>
+              <input id="researchPrice" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+            <label class="field">
+              <span>調査日</span>
+              <input id="researchDate" type="datetime-local">
+            </label>
+            <label class="field field-span-2"><span>主な特徴（1行に1つ）</span><textarea id="researchFeatures" rows="4"></textarea></label>
+            <label class="field"><span>メリット（1行に1つ）</span><textarea id="researchPros" rows="5"></textarea></label>
+            <label class="field"><span>デメリット（1行に1つ）</span><textarea id="researchCons" rows="5"></textarea></label>
+            <label class="field field-span-2"><span>気になる点（1行に1つ）</span><textarea id="researchConcerns" rows="3"></textarea></label>
+            <label class="field field-span-2"><span>レビュー傾向</span><textarea id="researchReviewSummary" rows="3"></textarea></label>
+            <label class="field field-span-2"><span>どんな人に向いているか（1行に1つ）</span><textarea id="researchRecommendedFor" rows="3"></textarea></label>
+            <label class="field field-span-2"><span>自分に合っているか / 理由</span><textarea id="researchPersonalFit" rows="3"></textarea></label>
+          </div>
+
+          <div class="score-grid">
+            <label><span>総合評価</span><input id="researchOverallScore" type="number" min="0" max="5" step="0.1" placeholder="4.5"></label>
+            <label><span>コスパ</span><input id="researchValueScore" type="number" min="0" max="5" step="0.1"></label>
+            <label><span>性能</span><input id="researchPerformanceScore" type="number" min="0" max="5" step="0.1"></label>
+            <label><span>自分との相性</span><input id="researchFitScore" type="number" min="0" max="5" step="0.1"></label>
+          </div>
+        </section>
+      </div>
+
+      <div class="dialog-footer">
+        <button class="button button-danger-quiet" id="deleteProductButton" type="button" hidden>商品を削除</button>
+        <div class="dialog-footer-spacer"></div>
+        <button class="button button-secondary" id="cancelProductButton" type="button">キャンセル</button>
+        <button class="button button-primary" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <datalist id="categoryOptions">
+    <option value="PC用品"></option>
+    <option value="オーディオ"></option>
+    <option value="デスク・家具"></option>
+    <option value="家電"></option>
+    <option value="生活用品"></option>
+  </datalist>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
