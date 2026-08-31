@@ -1,0 +1,23 @@
+name: Validate BuyLens
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/db.js
+          node --check src/app.js
+      - name: Validate project structure
+        run: node tests/validate.mjs
